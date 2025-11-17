@@ -137,5 +137,5 @@ of this software and associated documentation files...
 
 ## 🤝 Contact
 **Evans Gichunji**  
-Data Analytics Mastery Program  
+Data Analyst 
 Kenya, East Africa
