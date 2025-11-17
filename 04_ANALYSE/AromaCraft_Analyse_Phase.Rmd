@@ -1,0 +1,123 @@
+---
+title: "AromaCraft – Analyse Phase"
+author: "Evans Gichunji"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(DBI)
+library(RPostgres)
+library(lubridate)
+library(janitor)
+library(tidytext)
+library(broom)
+library(scales)
+```
+
+---
+
+## 1. Category Sizing & CAGR Modelling
+Objective
+
+To compute category-level annual totals and derive 5-year CAGR using synthetic sales data and triangulate with trade flow data.
+
+```{r}
+## ---- load-data, message=FALSE, warning=FALSE ----------------------------------
+
+# Load cleaned CSV datasets
+sales <- read_csv("../03_PREPARE/data_clean/synthetic_beverage_sales_clean.csv")
+comtrade <- read_csv("../03_PREPARE/data_clean/comtrade_ea_slim.csv")
+
+# Clean column names
+sales <- sales %>% clean_names()
+comtrade <- comtrade %>% clean_names()
+
+glimpse(sales)
+
+```
+
+
+### CAGR Function
+
+```{r}
+## ---- cagr-function ------------------------------------------------------------
+calc_cagr <- function(start_value, end_value, years) {
+  ((end_value / start_value)^(1/years) - 1) * 100
+}
+
+```
+
+### Compute Annual Totals Per Category
+
+```{r}
+## ---- category-totals -----------------------------------------------------------
+category_totals <- sales %>%
+  mutate(year = year(order_date)) %>% 
+  group_by(category, year) %>%
+  summarise(total_volume = sum(quantity, na.rm = TRUE),
+            total_value  = sum(total_price, na.rm = TRUE)) %>%
+  ungroup()
+
+head(category_totals)
+```
+
+### Calculate CAGR for Each Category
+
+```{r}
+## ---- compute-cagr -------------------------------------------------------------
+cagr_results <- category_totals %>%
+  group_by(category) %>%
+  summarise(
+    start_year = min(year),
+    end_year   = max(year),
+    start_val  = total_volume[year == start_year],
+    end_val    = total_volume[year == end_year],
+    CAGR_volume_percent = (calc_cagr(start_val, end_val, end_year - start_year))
+  ) %>% 
+  arrange(desc(CAGR_volume_percent)) %>% 
+  ungroup()
+
+cagr_results
+```
+
+### Plot Category Growth (ggplot)
+
+```{r}
+## ---- category-growth-plot ------------------------------------------------------
+library(ggplot2)
+
+# Convert to factor. This tells ggplot2 it should treat each year as a distinct category, not a continuous measurement.
+category_totals_clean <- category_totals %>%
+  mutate(year = as.factor(year)) 
+
+ggplot(category_totals_clean, aes(x = year, y = total_volume,group = category,color = category)) +
+  geom_line(linewidth = 1.2) +
+  geom_point() +
+  labs(
+    title = "Category Volume Trends (2021–2023)",
+    x = "Year",
+    y = "Total Volume",
+    color = "Category"
+  ) +
+  theme_minimal()
+```
+
+### Triangulation With Comtrade
+
+```{r}
+## ---- comtrade-triangulation ----------------------------------------------------
+trade_trends <- comtrade %>%
+  mutate(year = as.integer(year), 
+         hs_code = as.integer(hs_code),
+         total_trade_value_usd = as.integer(total_trade_value_usd),
+         total_weight_kg = as.integer(total_weight_kg)
+         ) %>% 
+  group_by(hs_code, year) %>%
+  summarise(import_volume = sum(total_weight_kg, na.rm = TRUE))
+
+trade_trends
+```
+

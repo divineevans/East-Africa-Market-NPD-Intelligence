@@ -240,8 +240,8 @@ write_csv(bev_clean,
 03_PREPARE/data_clean/comtrade_clean.csv
 03_PREPARE/data_clean/comtrade_ea_slim.csv
 03_PREPARE/data_clean/amazon_reviews_clean.csv
-03_PREPARE/data_clean/grocery_clean.csv
-03_PREPARE/data_clean/beverage_sales_clean.csv
+03_PREPARE/data_clean/grocery_inventory_clean.csv
+03_PREPARE/data_clean/synthetic_beverage_sales_clean.csv
 (OFF) products_clean
 (OFF) products_ea_slim
 
