@@ -1,0 +1,116 @@
+##############################
+# Core Security & Credentials
+##############################
+.env
+.env_*
+*.key
+*.json
+*_credentials.json
+service_account.json
+
+##############################
+# R / RStudio Files
+##############################
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
+.Rproj.user/
+.Rproj.user/*
+.Rproj.user/shared/notebooks/
+*.Rproj
+
+##############################
+# R Markdown Generated Files
+##############################
+*_cache/
+cache/
+*_files/
+*.utf8.md
+*.knit.md
+*.pdf
+*.html
+
+##############################
+# Python / Jupyter (if used)
+##############################
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+
+##############################
+# Data Files (Raw & Large)
+##############################
+# Never commit raw data to avoid repo bloat
+data_raw/
+# Intermediate data
+*.csv
+*.tsv
+*.xlsx
+*.parquet
+*.feather
+*.rds
+
+##############################
+# Logs & Temporary Files
+##############################
+logs/
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+##############################
+# Database / SQL
+##############################
+*.db
+*.sqlite
+*.sqlitedb
+*.db-journal
+
+##############################
+# Local Config Files
+##############################
+config.yml
+config.json
+.DS_Store
+Thumbs.db
+
+##############################
+# Machine-specific artifacts
+##############################
+.Rproj.user
+.idea/
+.vscode/
+*.iml
+
+##############################
+# Compiled Objects (rare in R)
+##############################
+*.o
+*.so
+*.dll
+
+##############################
+# BigQuery Temp & Export Files
+##############################
+bq_export_*/
+bq_results_*/
+*.gz
+*.zip
+
+##############################
+# Output folders (Share phase)
+##############################
+05_SHARE/*.pptx
+05_SHARE/*.pdf
+05_SHARE/*.html
+05_SHARE/*.png
+05_SHARE/*.jpeg
+05_SHARE/*.zip
+
+##############################
+# Session snapshots
+##############################
+session_info.txt

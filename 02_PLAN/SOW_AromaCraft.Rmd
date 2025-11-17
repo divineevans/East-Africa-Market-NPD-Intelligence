@@ -1,0 +1,74 @@
+---
+title: "Statement of Work (SOW) — Project 2: AromaCraft East Africa Market & NPD Intelligence"
+author: "Evans Gichunji"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+# 1. Project Overview
+AromaCraft Ingredients Ltd. requires a **Market & NPD Intelligence Report** for **East Africa (Kenya, Uganda, Tanzania, Ethiopia)** to guide flavour pipeline development, pack & price architecture, and consumer engagement strategy.
+
+This document defines scope, deliverables, data sources, KPIs, risks, and timeline following the **APAPASA** (Ask–Plan–Prepare–Analyse–Share–Act) framework.
+
+# 2. Objectives
+- Quantify market size and growth (Volume & Value, CAGR 2019-2024)
+- Identify top NPD launches & flavour trends across beverage, bakery & snack categories
+- Map key players & trade/investment flows
+- Profile Gen Z vs Millennial consumers
+- Recommend flavour & pack formats for 2026 innovation pipeline
+
+# 3. Scope
+| Dimension | Specification |
+|------------|---------------|
+| Geography | East Africa — Kenya, Uganda, Tanzania, Ethiopia |
+| Categories | Beverage (soft & alcoholic), Bakery, Savoury snacks |
+| Period | 2019 – 2024 (YTD) |
+| Output | Tableau Dashboard + PDF Report + GitHub Repo with R Markdown & Data Changelog |
+
+# 4. Data Sources
+1. **Open Food Facts** — product & flavour metadata  
+2. **Kaggle F&B Sales & NPD Datasets** — category sales proxies  
+3. **UN Comtrade API** — imports/exports of beverage & ingredient HS codes  
+
+# 5. Deliverables by Phase
+| Phase | Deliverable | Primary Tool |
+|--------|--------------|--------------|
+| Ask | Business Case & Analytical Questions | R Markdown |
+| Plan | Formal SOW (this file) | R Markdown → PDF |
+| Prepare | Data Inventory + Data Changelog | BigQuery + R |
+| Analyse | CAGR models, trend charts, flavour heatmaps | R (tidyverse) |
+| Share | Tableau dashboard + executive deck | Tableau |
+| Act | Pilot recommendations | Word/PDF |
+
+# 6. Success Metrics (KPIs)
+- Market sizing accuracy ≥ 90% traceable to source  
+- Top-10 flavours identified with dual-source validation  
+- Interactive Tableau dashboard with country/category filters  
+- GitHub repo with complete Data Changelog and R Markdown reproducibility  
+
+# 7. Risks & Mitigation
+| Risk | Impact | Mitigation |
+|-------|---------|------------|
+| Incomplete data coverage | Medium | Triangulate across Open Food Facts & Comtrade |
+| Inconsistent product taxonomy | High | Canonical mapping during Prepare |
+| Limited BigQuery quota | Low | Use Sandbox efficiently, export filtered CSVs |
+
+# 8. Timeline (6 Weeks)
+| Phase | Duration | Output |
+|-------|-----------|--------|
+| Plan | 1 wk | Approved SOW |
+| Prepare | 2 wks | Clean datasets + Data Changelog |
+| Analyse | 2 wks | Statistical analysis + visuals |
+| Share | 0.5 wk | Tableau & PDF |
+| Act | 0.5 wk | Pilot brief |
+
+# 9. Governance
+- All data changes must be logged in `README.md` (Data Changelog)  
+- All analysis steps must be documented in `.Rmd` files  
+- Movement to next phase requires sign-off on previous deliverables  
+
+# 10. Approvals
+| Role | Name | Signature | Date |
+|-------|------|------------|------|
+| Data Analyst | Evans Gichunji |   EWG            |        16-Nov-25 |
+

@@ -1,0 +1,258 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\documentclass[
+]{article}
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{longtable,booktabs,array}
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Statement of Work (SOW) --- Project 2: AromaCraft East Africa Market \& NPD Intelligence},
+  pdfauthor={Evans Gichunji},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Statement of Work (SOW) --- Project 2: AromaCraft East Africa
+Market \& NPD Intelligence}
+\author{Evans Gichunji}
+\date{2025-11-16}
+
+\begin{document}
+\maketitle
+
+\section{1. Project Overview}\label{project-overview}
+
+AromaCraft Ingredients Ltd.~requires a \textbf{Market \& NPD
+Intelligence Report} for \textbf{East Africa (Kenya, Uganda, Tanzania,
+Ethiopia)} to guide flavour pipeline development, pack \& price
+architecture, and consumer engagement strategy.
+
+This document defines scope, deliverables, data sources, KPIs, risks,
+and timeline following the \textbf{APAPASA}
+(Ask--Plan--Prepare--Analyse--Share--Act) framework.
+
+\section{2. Objectives}\label{objectives}
+
+\begin{itemize}
+\tightlist
+\item
+  Quantify market size and growth (Volume \& Value, CAGR 2019-2024)
+\item
+  Identify top NPD launches \& flavour trends across beverage, bakery \&
+  snack categories
+\item
+  Map key players \& trade/investment flows
+\item
+  Profile Gen Z vs Millennial consumers
+\item
+  Recommend flavour \& pack formats for 2026 innovation pipeline
+\end{itemize}
+
+\section{3. Scope}\label{scope}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.4444}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5556}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Dimension
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Specification
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Geography & East Africa --- Kenya, Uganda, Tanzania, Ethiopia \\
+Categories & Beverage (soft \& alcoholic), Bakery, Savoury snacks \\
+Period & 2019 -- 2024 (YTD) \\
+Output & Tableau Dashboard + PDF Report + GitHub Repo with R Markdown \&
+Data Changelog \\
+\end{longtable}
+
+\section{4. Data Sources}\label{data-sources}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  \textbf{Open Food Facts} --- product \& flavour metadata\\
+\item
+  \textbf{Kaggle F\&B Sales \& NPD Datasets} --- category sales
+  proxies\\
+\item
+  \textbf{UN Comtrade API} --- imports/exports of beverage \& ingredient
+  HS codes
+\end{enumerate}
+
+\section{5. Deliverables by Phase}\label{deliverables-by-phase}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.2222}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3889}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3889}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Phase
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Deliverable
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Primary Tool
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Ask & Business Case \& Analytical Questions & R Markdown \\
+Plan & Formal SOW (this file) & R Markdown → PDF \\
+Prepare & Data Inventory + Data Changelog & BigQuery + R \\
+Analyse & CAGR models, trend charts, flavour heatmaps & R (tidyverse) \\
+Share & Tableau dashboard + executive deck & Tableau \\
+Act & Pilot recommendations & Word/PDF \\
+\end{longtable}
+
+\section{6. Success Metrics (KPIs)}\label{success-metrics-kpis}
+
+\begin{itemize}
+\tightlist
+\item
+  Market sizing accuracy ≥ 90\% traceable to source\\
+\item
+  Top-10 flavours identified with dual-source validation\\
+\item
+  Interactive Tableau dashboard with country/category filters\\
+\item
+  GitHub repo with complete Data Changelog and R Markdown
+  reproducibility
+\end{itemize}
+
+\section{7. Risks \& Mitigation}\label{risks-mitigation}
+
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.2500}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.3214}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 4\tabcolsep) * \real{0.4286}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Risk
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Impact
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Mitigation
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Incomplete data coverage & Medium & Triangulate across Open Food Facts
+\& Comtrade \\
+Inconsistent product taxonomy & High & Canonical mapping during
+Prepare \\
+Limited BigQuery quota & Low & Use Sandbox efficiently, export filtered
+CSVs \\
+\end{longtable}
+
+\section{8. Timeline (6 Weeks)}\label{timeline-6-weeks}
+
+\begin{longtable}[]{@{}lll@{}}
+\toprule\noalign{}
+Phase & Duration & Output \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Plan & 1 wk & Approved SOW \\
+Prepare & 2 wks & Clean datasets + Data Changelog \\
+Analyse & 2 wks & Statistical analysis + visuals \\
+Share & 0.5 wk & Tableau \& PDF \\
+Act & 0.5 wk & Pilot brief \\
+\end{longtable}
+
+\section{9. Governance}\label{governance}
+
+\begin{itemize}
+\tightlist
+\item
+  All data changes must be logged in \texttt{README.md} (Data
+  Changelog)\\
+\item
+  All analysis steps must be documented in \texttt{.Rmd} files\\
+\item
+  Movement to next phase requires sign-off on previous deliverables
+\end{itemize}
+
+\section{10. Approvals}\label{approvals}
+
+\begin{longtable}[]{@{}llll@{}}
+\toprule\noalign{}
+Role & Name & Signature & Date \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Data Analyst & Evans Gichunji & EWG & 16-Nov-25 \\
+\end{longtable}
+
+\end{document}

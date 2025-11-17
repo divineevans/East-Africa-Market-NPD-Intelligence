@@ -1,0 +1,255 @@
+---
+title: "PREPARE Phase Documentation — AromaCraft EA Market & NPD Project"
+author: "Evans Gichunji"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+# 1. Introduction
+
+This document records all activities performed during the **PREPARE** phase of the AromaCraft East Africa Market & NPD Intelligence Project.  
+It documents data ingestion, cleaning, validation, storage, and transformations across all selected datasets:
+
+- **Open Food Facts (OFF)**  
+- **UN Comtrade (manual download)**  
+- **Kaggle datasets**:
+  - Amazon Fine Food Reviews  
+  - Grocery Inventory & Sales  
+  - Synthetic Beverage Sales  
+
+The PREPARE phase ensures that all data entering the analytical phase is **clean, validated, reproducible, and well-documented**, in line with APAPASA methodology.
+
+---
+
+# 2. Directory Verification
+
+The project directory structure was created earlier. During this phase, only missing subfolders were appended.
+
+All cleaned files are saved under: **03_PREPARE/data_clean/**
+
+---
+
+# 3. Load Libraries and Setup
+
+```r
+library(readr)
+library(dplyr)
+library(stringr)
+library(lubridate)
+```
+---
+
+# 4. Data Sources Overview
+
+## 4.1 Open Food Facts (OFF)
+- Full 9GB global dataset ingested → stored in `staging_raw`.
+- Cleaned and column-aligned dataset created → `products_clean`.
+- Slim East Africa analytical table created → `products_ea_slim`  
+  Includes:  
+  *product name, brand, categories, packaging, flavours/ingredients, NutriScore, NOVA group, images, countries.*
+
+## 4.2 UN Comtrade (Manual Download)
+File used:  
+`03_PREPARE/data_raw/un_comtrade/comtrade_KEUGTZET_2018_2024.csv`
+
+Contains all HS codes for Kenya, Uganda, Tanzania & Ethiopia (2018–2024).
+
+Cleaned dataset:
+- `comtrade_clean.csv`  
+- `comtrade_ea_slim.csv`
+
+## 4.3 Kaggle Datasets
+All stored under `data_raw/`:
+
+- **Amazon Fine Food Reviews** → Will support sentiment + persona features  
+- **Grocery Inventory & Sales** → Category growth & pricing proxy  
+- **Synthetic Beverage Sales** → EA-like sales simulation for modelling  
+
+Each dataset is imported and minimally cleaned for consistency.
+
+---
+
+# 5. Data Preparation Workflows
+
+## 5.1 Open Food Facts Cleaning Summary
+The following operations were previously completed:
+
+- Column alignment across 200+ inconsistent fields  
+- Standardisation of country fields  
+- Extraction of flavour descriptors  
+- Creation of slim EA table (`products_ea_slim`)  
+- Removal of duplicates using barcode keys  
+- Validation of category hierarchies
+
+Outputs saved to postgres.
+
+---
+
+## 5.2 UN Comtrade Manual Cleaning Workflow
+
+The following script was executed:
+
+```r
+############################################################
+# 02_clean_comtrade_manual.R
+# Purpose: Clean manually downloaded UN Comtrade file
+# Input: 03_PREPARE/data_raw/un_comtrade/comtrade_KEUGTZET_2018_2024.csv
+# Output: data_clean/comtrade_clean.csv & comtrade_ea_slim.csv
+############################################################
+library(readr)
+library(dplyr)
+library(stringr)
+
+raw_path <- "03_PREPARE/data_raw/un_comtrade/comtrade_KEUGTZET_2018_2024.csv"
+comtrade_raw <- read_csv(raw_path, show_col_types = FALSE)
+
+east_africa <- c("Kenya", "Uganda", "Tanzania", "Ethiopia")
+
+comtrade_ea <- comtrade_raw %>%
+  filter(
+    reporterDesc %in% east_africa,
+    flowDesc == "Import"
+  )
+
+comtrade_clean <- comtrade_ea %>%
+  select(
+    country            = reporterDesc,
+    year               = refYear,
+    hs_code            = cmdCode,
+    hs_description     = cmdDesc,
+    trade_value_usd    = primaryValue,
+    net_weight_kg      = netWgt,
+    quantity           = qty,
+    quantity_unit      = qtyUnitAbbr
+  ) %>%
+  mutate(
+    year            = as.integer(year),
+    trade_value_usd = as.numeric(trade_value_usd),
+    net_weight_kg   = as.numeric(net_weight_kg),
+    quantity        = as.numeric(quantity)
+  )
+
+write_csv(comtrade_clean, "03_PREPARE/data_clean/comtrade_clean.csv")
+
+comtrade_ea_slim <- comtrade_clean %>%
+  group_by(country, year, hs_code, hs_description) %>%
+  summarise(
+    total_trade_value_usd = sum(trade_value_usd, na.rm = TRUE),
+    total_weight_kg       = sum(net_weight_kg, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+write_csv(comtrade_ea_slim, "03_PREPARE/data_clean/comtrade_ea_slim.csv")
+
+message("Manual Comtrade cleaning complete.")
+```
+---
+
+## 5.3 Amazon Fine Food Reviews — Basic Cleaning 
+
+```r
+############################################################
+# Amazon Reviews Cleaning
+############################################################
+
+reviews_raw <- read_csv("03_PREPARE/data_raw/amazon_fine_food_reviews.csv",
+                         show_col_types = FALSE)
+
+amazon_reviews_clean <- reviews_raw %>%
+  select(
+    productid = ProductId,
+    userid    = UserId,
+    score     = Score,
+    summary   = Summary,
+    text      = Text
+  ) %>%
+  mutate(across(everything(), as.character))
+
+write_csv(amazon_reviews_clean,
+          "03_PREPARE/data_clean/amazon_reviews_clean.csv")
+
+```
+---
+
+## 5.4 Grocery Inventory & Sales Dataset — Basic Cleaning
+
+```r
+############################################################
+# Grocery Dataset Cleaning
+############################################################
+
+grocery_raw <- read_csv("03_PREPARE/data_raw/Grocery_Inventory_and_Sales_Dataset.csv",
+                        show_col_types = FALSE)
+
+grocery_clean <- grocery_raw %>%
+  rename_with(~ tolower(.x)) %>%
+  mutate(
+    unit_price = str_replace(unit_price, "\\$", ""),
+    unit_price = as.numeric(unit_price)
+  ) %>%
+  select(
+    product_id,
+    product_name,
+    category = catagory,
+    unit_price,
+    stock_quantity,
+    sales_volume
+  )
+
+write_csv(grocery_clean,
+          "03_PREPARE/data_clean/grocery_clean.csv")
+```
+---
+
+## 5.5 SYNTHETIC BEVERAGE SALES CLEANING
+
+```r
+############################################################
+# Synthetic Beverage Sales Cleaning
+############################################################
+
+bev_raw <- read_csv("03_PREPARE/data_raw/synthetic_beverage_sales_data.csv",
+                    show_col_types = FALSE)
+
+bev_clean <- bev_raw %>%
+  rename_with(~ tolower(.x)) %>%
+  select(
+    order_id,
+    customer_id,
+    customer_type,
+    product,
+    category,
+    unit_price,
+    quantity,
+    discount,
+    total_price,
+    order_date
+  ) %>%
+  mutate(
+    order_date = ymd(order_date)
+  )
+
+write_csv(bev_clean,
+          "03_PREPARE/data_clean/beverage_sales_clean.csv")
+```
+
+---
+
+# 6. Summary of Output Files
+
+03_PREPARE/data_clean/comtrade_clean.csv
+03_PREPARE/data_clean/comtrade_ea_slim.csv
+03_PREPARE/data_clean/amazon_reviews_clean.csv
+03_PREPARE/data_clean/grocery_clean.csv
+03_PREPARE/data_clean/beverage_sales_clean.csv
+(OFF) products_clean
+(OFF) products_ea_slim
+
+---
+
+# 7. Completion Statement
+The PREPARE phase is complete.
+All datasets are cleaned, standardized, column-aligned, and ready for the ANALYSE phase.
+
+
+
