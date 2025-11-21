@@ -99,6 +99,19 @@ DATE | TYPE | DESCRIPTION | OUTPUT FILE | SCRIPT
 2025-11-13 | CLEANING  | Harmonized Grocery Dataset            | grocery_clean.csv | grocery_clean.R
 2025-11-13 | TRANSFORM | Cleaned beverage synthetic sales      | beverage_sales_clean.csv | beverage_sales_clean.R
 2025-11-14 | TRANSFORM | Final OFF EA analytical table         | products_ea_slim.csv | off_ea_slim.R
+2025-02-14 | IMPUTATION | Standardised 'unit_price' to numeric and removed currency symbols | grocery_inventory_clean.csv | prep_price_pack_grocery.R
+2025-02-14 | IMPUTATION | Imputed missing 'unit_price' using category median values | grocery_inventory_clean.csv | prep_price_pack_grocery.R
+2025-02-14 | TRANSFORM  | Created 'revenue' = unit_price * sales_volume | grocery_inventory_clean.csv | prep_price_pack_grocery.R
+2025-02-14 | TRANSFORM  | Created 'price_tier' using quantile-based bucketing | grocery_inventory_clean.csv | prep_price_pack_grocery.R
+
+2025-02-14 | CLEANING   | Normalised product names (trim/lowercase) | synthetic_beverage_sales_clean.csv | prep_price_pack_bevsales.R
+2025-02-14 | IMPUTATION | Imputed missing 'unit_price' using category-level medians | synthetic_beverage_sales_clean.csv | prep_price_pack_bevsales.R
+2025-02-14 | TRANSFORM  | Added 'total_revenue' and 'unit_discount_price' metrics | synthetic_beverage_sales_clean.csv | prep_price_pack_bevsales.R
+2025-02-14 | IMPUTATION | Replaced negative or zero 'quantity' with category median | synthetic_beverage_sales_clean.csv | prep_price_pack_bevsales.R
+
+2025-02-14 | PARSING    | Extracted numeric pack sizes from OFF 'quantity' field (e.g., '300 ml' → 300) | products_ea_slim (PostgreSQL) | prep_off_packsize_parse.R
+2025-02-14 | IMPUTATION | Imputed missing pack sizes using brand-level or category-level mode | products_ea_slim (PostgreSQL) | prep_off_packsize_impute.R
+2025-02-14 | TRANSFORM  | Standardised all pack sizes to millilitres/grams for cross-dataset comparability | products_ea_slim (PostgreSQL) | prep_off_packsize_impute.R
 ```
 
 ---

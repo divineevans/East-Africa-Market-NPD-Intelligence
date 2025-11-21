@@ -15,11 +15,13 @@ library(janitor)
 library(tidytext)
 library(broom)
 library(scales)
+library(fuzzyjoin)
+library(stringr)
 ```
 
 ---
 
-## 1. Category Sizing & CAGR Modelling
+## Category Sizing & CAGR Modelling
 Objective
 
 To compute category-level annual totals and derive 5-year CAGR using synthetic sales data and triangulate with trade flow data.
@@ -120,4 +122,440 @@ trade_trends <- comtrade %>%
 
 trade_trends
 ```
+
+
+
+---
+
+## Price & Pack Architecture — method and outputs
+
+**Objective.** Normalize unit prices across pack sizes and formats to produce price-per-volume (L) or price-per-weight (kg) metrics, then construct price tiers for strategic product positioning.
+
+**Method.**  
+1. Extract pack size from `products_ea_slim.packaging` and `quantity` (units such as `ml`, `l`, `g`, `kg`), converting to `pack_litre` for beverage SKUs.  
+2. Fuzzy-match sales SKUs (`synthetic_beverage_sales_clean.csv`, `grocery_inventory_clean.csv`) to `products_ea_slim` on normalized product name keys to inherit pack sizes. Jaro–Winkler string distance is used with a conservative threshold to avoid false matches; each match logs a `match_dist` for QA.  
+3. For unmatched SKUs, impute pack size using the median pack size within the same product category (imputed rows are flagged).  
+4. Calculate `price_per_litre = unit_price / pack_litre` (and `price_per_kg` for solids).  
+5. Segment prices into **economy / mid / premium** tiers using tertile quantiles.  
+6. Export enriched datasets and produce summary tables and visuals.
+
+**Outputs saved:**  
+- `03_PREPARE/data_clean/bev_sales_enriched.csv`  
+- `03_PREPARE/data_clean/grocery_enriched.csv`  
+
+**Notes & assumptions.**  
+- `unit_price` is assumed to be the price per single retail unit. Any known bulk discounts should be reverse-engineered or documented.  
+- Imputed pack sizes are conservative approximations and are marked in the Data CHANGELOG for traceability.
+
+### **Step 1 - Load Data**
+```{r}
+grocery <- read_csv("../03_PREPARE/data_clean/grocery_inventory_clean.csv") %>% clean_names()
+bev_sales <- sales
+```
+
+### **Step 2 — Harmonize Pack-Size Units**
+
+```{r price_pack_setup, message=FALSE, warning=FALSE}
+
+# Paths for local cleaned CSVs
+grocery_path <- "../03_PREPARE/data_clean/grocery_inventory_clean.csv"
+bev_path     <- "../03_PREPARE/data_clean/synthetic_beverage_sales_clean.csv"
+
+# Read CSVs if not already loaded
+if (!exists("grocery")) grocery <- read_csv(grocery_path, show_col_types = FALSE) %>% clean_names()
+if (!exists("bev_sales")) bev_sales <- read_csv(bev_path, show_col_types = FALSE) %>% clean_names()
+
+# Pull products_ea_slim 
+products_ea_slim <- read_csv("../03_PREPARE/data_clean/products_ea_slim_packaging.csv") %>%
+  as_tibble() %>% clean_names()
+
+# Quick look
+glimpse(products_ea_slim)
+glimpse(bev_sales)
+glimpse(grocery)
+```
+---
+  
+  ### 2.a) Parse packaging → numeric `pack_ml` or `pack_g` and `pack_litre` (for beverages)
+
+```{r parse_packaging_fixed, message=FALSE, warning=FALSE}
+# Helper: normalize packaging/quantity fields to numeric (ml or g)
+parse_size_fixed <- function(qty_text) {
+  # 1. Handle NA, empty string, and "Null" string
+  if (is.na(qty_text) || qty_text == "" || tolower(qty_text) == "null") {
+    return(list(ml = NA_real_, g = NA_real_))
+  }
+  
+  txt <- tolower(qty_text)
+  
+  # 2. Reinstate Multiplicative Handling (2x330 ml)
+  txt <- str_replace_all(txt, "\\s+", " ")
+  mult <- str_extract(txt, "^[0-9]+(?=\\s?x)|(?<=\\b)[0-9]+(?=x)")
+  mult <- as.numeric(mult)
+  if (is.na(mult)) mult <- 1
+  
+  # 3. Find numeric and unit
+  num_unit <- str_match(txt, "([0-9]+\\.?[0-9]*)\\s*(ml|l|litre|litres|g|gram|kg|kg\\b)")
+  
+  if (!is.na(num_unit[1,1])) {
+    val <- as.numeric(num_unit[1,2])
+    unit <- num_unit[1,3]
+    
+    # 4. Normalize and convert units (Applying multiplication factor)
+    if (str_detect(unit, "ml")) {
+      ml <- val * mult
+      return(list(ml = ml, g = NA_real_))
+    } else if (str_detect(unit, "^l")) {
+      ml <- val * 1000 * mult # Litres to ml
+      return(list(ml = ml, g = NA_real_))
+    } else if (str_detect(unit, "kg")) {
+      g <- val * 1000 * mult # Kilograms to g
+      return(list(ml = NA_real_, g = g))
+    } else if (str_detect(unit, "g")) {
+      g <- val * mult # Grams remain g
+      return(list(ml = NA_real_, g = g))
+    }
+  }
+  
+  # 5. Fallback: try to extract any number (assuming ml for beverage context)
+  fallback_num <- as.numeric(str_extract(txt, "[0-9]+\\.?[0-9]*"))
+  if (!is.na(fallback_num)) { return(list(ml = fallback_num, g = NA_real_)) }
+  
+  return(list(ml = NA_real_, g = NA_real_))
+}
+
+# Apply parser to products_ea_slim: use packaging, falling back to quantity
+products_ea_slim_parsed <- products_ea_slim %>%
+  mutate(
+    # Reinstated coalescing
+    packaging_raw = coalesce(packaging, quantity),
+    parsed = map(packaging_raw, parse_size_fixed),
+    pack_ml = map_dbl(parsed, ~ .x$ml %||% NA_real_),
+    pack_g  = map_dbl(parsed, ~ .x$g  %||% NA_real_)
+  ) %>%
+  select(-parsed)
+
+# Helper: normalize packaging/quantity fields to numeric (ml or g)
+parse_size_revised <- function(qty_text) {
+  # 1. Handle NA, empty string, and "Null" string
+  if (is.na(qty_text) || qty_text == "" || tolower(qty_text) == "null") {
+    return(list(ml = NA_real_, g = NA_real_))
+  }
+  
+  txt <- tolower(qty_text)
+  
+  # 2. Find numeric and unit
+  # Pattern to capture the value and the unit (ml, l, g, kg)
+  num_unit <- str_match(txt, "([0-9]+\\.?[0-9]*)\\s*(ml|l|litre|litres|g|gram|kg|kg\\b)")
+  
+  if (!is.na(num_unit[1,1])) {
+    val <- as.numeric(num_unit[1,2])
+    unit <- num_unit[1,3]
+    
+    # 3. Normalize and convert units (No multiplication factor needed)
+    if (str_detect(unit, "ml")) {
+      ml <- val
+      return(list(ml = ml, g = NA_real_))
+    } else if (str_detect(unit, "^l")) {
+      ml <- val * 1000 # Convert litres to ml
+      return(list(ml = ml, g = NA_real_))
+    } else if (str_detect(unit, "kg")) {
+      g <- val * 1000 # Convert kg to g
+      return(list(ml = NA_real_, g = g))
+    } else if (str_detect(unit, "g")) {
+      g <- val
+      return(list(ml = NA_real_, g = g))
+    }
+  }
+  
+  # 4. Fallback: try to extract any number
+  fallback_num <- as.numeric(str_extract(txt, "[0-9]+\\.?[0-9]*"))
+  if (!is.na(fallback_num)) { return(list(ml = fallback_num, g = NA_real_)) }
+  
+  return(list(ml = NA_real_, g = NA_real_))
+}
+
+# Apply parser to products_ea_slim$quantity
+products_ea_slim_parsed <- products_ea_slim %>%
+  mutate(
+    # Use quantity column directly
+    parsed = map(quantity, parse_size_revised), 
+    pack_ml = map_dbl(parsed, ~ .x$ml %||% NA_real_),
+    pack_g  = map_dbl(parsed, ~ .x$g  %||% NA_real_)
+  ) %>%
+  select(-parsed)
+
+# Expanded lists for clear logic
+DESSERT_KEYWORDS <- "chocolate|biscuit|cookie|ice cream|candy"
+BEVERAGE_KEYWORDS <- "water|alcoholic|tea|coffee|beer|drinking|malt|beers|beverages|rtd|wine|drink|soda|juice|cola|beverage"
+
+products_ea_slim_parsed <- products_ea_slim_parsed %>%
+  mutate(
+    main_cat = tolower(coalesce(main_category_en, "")),
+    
+    # 1. Create temporary flags
+    prod_name_contains_bev = str_detect(tolower(product_name), BEVERAGE_KEYWORDS),
+    
+    # 2. Define is_dessert based on main category
+    is_dessert = str_detect(main_cat, DESSERT_KEYWORDS),
+
+    # 3. Define Base Beverage Likelihood (A)
+    # This check identifies all potential beverages before the dessert exclusion
+    base_is_beverage = str_detect(main_cat, BEVERAGE_KEYWORDS) | 
+                       ( # OR: Fallback for null categories
+                         main_cat == "null" & 
+                         (
+                           !is.na(pack_ml) | # Check for liquid unit proxy OR
+                           prod_name_contains_bev # Check product name keywords
+                         )
+                       ),
+
+    # 4. Final is_beverage (Applying the dessert exclusion)
+    is_beverage = if_else(
+      is_dessert,
+      FALSE, # Primary exclusion: If it's a dessert, it is NOT a beverage
+      base_is_beverage # Otherwise, use the result of the base check
+    ),
+    
+    # 5. Final unit conversion (Unconditional: L if ML exists, KG if G exists)
+    pack_litre = if_else(!is.na(pack_ml), pack_ml / 1000, NA_real_),
+    pack_kg    = if_else(!is.na(pack_g), pack_g / 1000, NA_real_)
+  ) %>%
+  # Clean up the temporary flags
+  select(-prod_name_contains_bev, -base_is_beverage)
+
+# Basic diagnostics
+products_ea_slim_parsed %>% summarise(
+  n_total = n(),
+  n_pack_ml = sum(!is.na(pack_ml)),
+  n_pack_l = sum(!is.na(pack_litre)),
+  n_pack_g = sum(!is.na(pack_g))
+)
+
+glimpse(products_ea_slim_parsed)
+```
+
+---
+  
+### 2.b) Standardize sales tables and prepare for join
+  
+We need a normalized product key for fuzzy matching. We'll create `prod_key` by lowercasing and removing punctuation.
+
+```{r prepare_sales_for_join}
+# safe helper
+norm_key <- function(x) {
+  x %>% tolower() %>% str_replace_all("[^a-z0-9 ]", " ") %>% str_squish()
+}
+
+products_ea_key <- products_ea_slim_parsed %>%
+  mutate(prod_key = norm_key(product_name), brand_key = norm_key(brands))
+
+bev_sales_key <- bev_sales %>%
+  mutate(prod_key = norm_key(product), brand_key = NA_character_) # if brand exists add mapping
+
+grocery_key <- grocery %>%
+  mutate(prod_key = norm_key(product_name), brand_key = NA_character_)
+
+# quick head
+head(products_ea_key$prod_key)
+head(bev_sales_key$prod_key)
+```
+
+---
+  
+### 2.c) Fuzzy join sales → products to inherit pack sizes
+  
+We’ll use `stringdist_inner_join` from `fuzzyjoin` with a conservative max distance. We add a `match_dist` metric to inspect quality. Keep only best match per sales SKU (lowest distance).
+
+```{r fuzzy_join}
+
+# Fuzzy join bev_sales -> products (limit to beverages category to reduce noise)
+bev_candidates <- bev_sales_key %>%
+  mutate(row_id = row_number()) %>%
+  select(row_id, everything())
+
+# Do a fuzzy join (product key) - tune max_dist as needed (e.g., 0.1 relative or low integer)
+# For stringdist method "jw" (Jaro-Winkler) use max_dist ~ 0.15; for "osa" use 2-3
+joined_bev <- stringdist_inner_join(
+  bev_candidates,
+  products_ea_key %>% select(code, product_name, prod_key, pack_ml, pack_litre, main_cat),
+  by = "prod_key",
+  method = "jw",
+  max_dist = 0.18,
+  distance_col = "match_dist"
+)
+
+# Take best (lowest match_dist) per sales row
+joined_bev_best <- joined_bev %>%
+  group_by(row_id) %>%
+  slice_min(match_dist, n = 1, with_ties = FALSE) %>%
+  ungroup()
+
+# Inspect unmatched rate
+matched_rate <- n_distinct(joined_bev_best$row_id) / nrow(bev_candidates)
+message(sprintf("Matched %d / %d bev rows (%.1f%%)", n_distinct(joined_bev_best$row_id), nrow(bev_candidates), matched_rate*100))
+
+# Left-join pack info back to bev_sales
+bev_sales_enriched <- bev_sales_key %>%
+  mutate(row_id = row_number()) %>%
+  left_join(
+    joined_bev_best %>%
+      select(row_id, code, product_name.y = product_name, pack_ml, pack_litre, match_dist),
+    by = "row_id"
+  ) %>%
+  select(-row_id)
+
+# For grocery dataset do same but with different max_dist perhaps
+grocery_candidates <- grocery_key %>% mutate(row_id = row_number())
+joined_groc <- stringdist_inner_join(
+  grocery_candidates,
+  products_ea_key %>% select(code, product_name, prod_key, pack_ml, pack_kg, main_cat),
+  by = "prod_key",
+  method = "jw",
+  max_dist = 0.14,
+  distance_col = "match_dist"
+)
+joined_groc_best <- joined_groc %>% group_by(row_id) %>% slice_min(match_dist, n=1) %>% ungroup()
+grocery_enriched <- grocery_key %>% 
+  mutate(row_id = row_number()) %>%
+  left_join(
+    joined_groc_best %>% 
+      select(
+        row_id, 
+        code, 
+        # RENAME the existing column 'product_name.y' to 'master_product_name' 
+        # (or whatever descriptive name you prefer)
+        master_product_name = product_name.y, 
+        pack_ml, 
+        pack_kg, 
+        match_dist
+      ), 
+    by = "row_id"
+  ) %>%
+  select(-row_id)
+
+# Quick checks
+glimpse(bev_sales_enriched)
+glimpse(grocery_enriched)
+```
+
+---
+  
+### 2.d) Impute missing pack sizes conservatively
+  
+  If `pack_litre` / `pack_kg` is missing after fuzzy join, impute using **category median pack size** (documented). Flag imputed rows.
+
+```{r impute_packs}
+# Compute category medians from products table
+cat_medians <- products_ea_key %>%
+  filter(!is.na(pack_litre) | !is.na(pack_kg)) %>%
+  group_by(main_category_en) %>%
+  summarise(
+    median_pack_l = median(pack_litre, na.rm = TRUE),
+    median_pack_kg = median(pack_kg, na.rm = TRUE),
+    n = n()
+  )
+
+# Impute for beverages
+bev_sales_final <- bev_sales_enriched %>%
+  left_join(cat_medians, by = c("category" = "main_category_en")) %>%
+  mutate(
+    pack_litre = coalesce(pack_litre, median_pack_l),
+    pack_imputed = is.na(match_dist) | (is.na(pack_ml) & !is.na(median_pack_l))
+  ) %>%
+  select(-median_pack_l, -median_pack_kg, -n)
+
+# For grocery (solids) impute pack_kg similarly
+grocery_final <- grocery_enriched %>%
+  left_join(cat_medians, by = c("category" = "main_category_en")) %>%
+  mutate(
+    pack_kg = coalesce(pack_kg, median_pack_kg),
+    pack_imputed = is.na(match_dist) | (is.na(pack_kg) & !is.na(median_pack_kg))
+  ) %>%
+  select(-median_pack_l, -median_pack_kg, -n)
+
+# Report imputation rates
+bev_final_stats <- bev_sales_final %>%
+  summarise(
+    total = n(),
+    with_pack = sum(!is.na(pack_litre)),
+    imputed = sum(pack_imputed, na.rm = TRUE),
+    pct_with_pack = with_pack/total*100
+  )
+groc_final_stats <- grocery_final %>%
+  summarise(
+    total = n(),
+    with_pack = sum(!is.na(pack_kg)),
+    imputed = sum(pack_imputed, na.rm = TRUE),
+    pct_with_pack = with_pack/total*100
+  )
+bev_final_stats; groc_final_stats
+
+```
+
+---
+  
+### 2.e) Compute price per litre / kg and define price tiers
+  
+  We compute `price_per_litre` and create tiers by quantiles (terciles: Economy/Mid/Premium). Explain why quantiles are used (deterministic, simple to explain to stakeholders).
+
+```{r price_metrics}
+# For beverages
+bev_sales_final <- bev_sales_final %>%
+  mutate(
+    price = unit_price, # already present
+    price_per_litre = if_else(!is.na(pack_litre) & pack_litre > 0, price / pack_litre, NA_real_)
+  )
+
+# Create price tiers using quantiles (strict: tertiles)
+q <- quantile(bev_sales_final$price_per_litre, probs = c(0.33, 0.66), na.rm = TRUE)
+bev_sales_final <- bev_sales_final %>%
+  mutate(
+    price_tier = case_when(
+      is.na(price_per_litre) ~ "unknown",
+      price_per_litre <= q[1] ~ "economy",
+      price_per_litre <= q[2] ~ "mid",
+      price_per_litre > q[2]  ~ "premium"
+    )
+  )
+
+# For grocery (solids) price per kg
+grocery_final <- grocery_final %>%
+  mutate(
+    price = unit_price,
+    price_per_kg = if_else(!is.na(pack_kg) & pack_kg > 0, price / pack_kg, NA_real_)
+  )
+
+qg <- quantile(grocery_final$price_per_kg, probs = c(0.33, 0.66), na.rm = TRUE)
+grocery_final <- grocery_final %>%
+  mutate(
+    price_tier = case_when(
+      is.na(price_per_kg) ~ "unknown",
+      price_per_kg <= qg[1] ~ "economy",
+      price_per_kg <= qg[2] ~ "mid",
+      price_per_kg > qg[2]  ~ "premium"
+    )
+  )
+
+# Summaries
+bev_summary <- bev_sales_final %>%
+  group_by(category, price_tier) %>%
+  summarise(
+    median_price_per_l = median(price_per_litre, na.rm = TRUE),
+    n = n()
+  ) %>% arrange(category, desc(n))
+
+grocery_summary <- grocery_final %>%
+  group_by(category, price_tier) %>%
+  summarise(
+    median_price_per_kg = median(price_per_kg, na.rm = TRUE),
+    n = n()
+  ) %>% arrange(category, desc(n))
+
+bev_summary %>% head(20)
+grocery_summary %>% head(20)
+```
+
+
+
 
